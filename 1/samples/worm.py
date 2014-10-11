@@ -5,6 +5,7 @@ import nmap
 import netinfo
 import os
 import sys
+import fcntl, struct
 
 # The list of credentials to attempt
 credList = [
