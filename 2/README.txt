@@ -2,6 +2,11 @@ Christopher Randin
 cdrandin@csu.fullerton.edu
 
 Part 1:
+
+The included files are result.png result.zip. They are both files in which I copied the binary data into.
+result.png: Used copy/b *.png + *.zip result.png
+result.zip: Used copy/b *.zip + *.png result.zip
+
 1. Explain what is happening. Do some research in order to find out what the above copy command does. 
 In your explanation be sure to explain the role of each argument in the above command. 
 Also, be sure to explain how Windows handles files which leads the above behavior.
