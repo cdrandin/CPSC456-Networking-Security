@@ -23,3 +23,11 @@ Having the reliable code execute and the malicious code hide in the file waiting
 3. How robust is this technique when in terms of avoiding detection by anti-virus tools? You may need to do some research.
 This technique may not be so robust because the file may appear to be larger than usual which can be "obvious" when examining the file.
 It can also be used to detect the malicious signatures when examining the files.
+
+Part 2:
+Can be executes as follows: 
+python binder.py /bin/ls /bin/ps
+
+Then the generate an executable file 'bound' will be created. 
+Execute it as follows:
+./bound which will then execute both the ls and ps command.
